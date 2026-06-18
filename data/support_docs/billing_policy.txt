@@ -1,0 +1,18 @@
+SaaS Platform Billing Policy
+
+1. Billing Cycles and Invoicing
+All subscriptions are billed in advance on a recurring monthly or annual basis, depending on the plan selected during checkout.
+Invoices are generated automatically on the first day of each billing cycle. A PDF copy of the invoice is sent to the registered billing email address and is also available in the dashboard under Settings > Billing > Invoice History.
+
+2. Accepted Payment Methods
+We accept major credit cards (Visa, MasterCard, American Express, Discover), ACH payments, and direct wire transfers (Enterprise subscriptions only). Payment information can be updated at any time by the Billing Owner in the console.
+
+3. Grace Period and Dunning Process
+If a payment fails, the system will automatically retry the card:
+* Attempt 2: 3 days after first failure
+* Attempt 3: 7 days after first failure
+* Attempt 4 (Final): 14 days after first failure
+During this 14-day grace period, your account remains active with a 'Payment Past Due' banner. If payment is not successfully processed by day 14, the account will be automatically suspended.
+
+4. Sales Tax and Compliance
+Prices shown are exclusive of VAT, GST, or local sales taxes. Taxes are calculated based on your corporate billing address and will be listed as a separate line item on the invoice where applicable.\n

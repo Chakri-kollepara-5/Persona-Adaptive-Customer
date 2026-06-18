@@ -1,0 +1,19 @@
+# Python Caches
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.pytest_cache/
+
+# Environment configurations
+.env
+.venv/
+env/
+venv/
+
+# Local database store and support docs
+data/chromadb/
+logs/
+
+# Streamlit logs and configurations
+.streamlit/
