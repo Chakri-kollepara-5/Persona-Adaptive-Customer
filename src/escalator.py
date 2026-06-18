@@ -28,6 +28,25 @@ class Escalator:
                 logger.error(f"Failed to reconfigure Gemini API client in Escalator: {e}")
                 self.initialized = False
 
+    def _is_general_chitchat(self, query: str) -> bool:
+        """Helper to determine if the query is a simple greeting or general chitchat."""
+        q = query.strip().lower().rstrip("?.!")
+        greetings = {
+            "hello", "hi", "hey", "greetings", "good morning", "good afternoon", "good evening", 
+            "howdy", "who are you", "who are u", "hi there", "hello there", "what is this", 
+            "what are you", "help", "info", "test", "yo", "sup", "how are you", "how are u"
+        }
+        if q in greetings:
+            return True
+        
+        # Split into words to check short queries containing greeting roots
+        words = q.split()
+        if len(words) <= 4:
+            roots = {"hi", "hello", "hey", "who", "help", "test", "greetings", "u", "you"}
+            if any(w in roots for w in words):
+                return True
+        return False
+
     def evaluate_escalation(
         self,
         query: str,
@@ -47,6 +66,13 @@ class Escalator:
         """
         # 1. No documents found
         if not retrieved_chunks:
+            # Bypass escalation for simple introductory greetings
+            if self._is_general_chitchat(query):
+                return {
+                    "should_escalate": False,
+                    "reason": "Request is an introductory greeting.",
+                    "handoff_summary": None
+                }
             return {
                 "should_escalate": True,
                 "reason": "No relevant documents found in the support knowledge base.",
@@ -56,6 +82,13 @@ class Escalator:
         # 2. Confidence below threshold
         max_similarity = max([c["similarity"] for c in retrieved_chunks]) if retrieved_chunks else 0.0
         if max_similarity < confidence_threshold:
+            # Bypass escalation for simple introductory greetings even if similarity is low
+            if self._is_general_chitchat(query):
+                return {
+                    "should_escalate": False,
+                    "reason": "Request is an introductory greeting.",
+                    "handoff_summary": None
+                }
             return {
                 "should_escalate": True,
                 "reason": f"Retrieval confidence score ({max_similarity:.2f}) is below the threshold ({confidence_threshold:.2f}).",
