@@ -1,5 +1,6 @@
 import json
-import google.generativeai as genai
+from google import genai
+from google.genai import types
 from typing import Dict, Any, List
 from src.config import Config
 from src.utils import logger, retry_on_exception
@@ -9,24 +10,22 @@ class CustomerClassifier:
     
     def __init__(self, api_key: str = ""):
         self.api_key = api_key or Config.GEMINI_API_KEY
-        self.initialized = False
+        self.client = None
         if self.api_key:
             try:
-                genai.configure(api_key=self.api_key)
-                self.initialized = True
+                self.client = genai.Client(api_key=self.api_key)
             except Exception as e:
-                logger.error(f"Failed to configure Gemini API client in Classifier: {e}")
+                logger.error(f"Failed to configure Gemini client in Classifier: {e}")
                 
     def reconfigure(self, api_key: str):
         """Reconfigures the Gemini client with a new API key."""
         if api_key:
             try:
-                genai.configure(api_key=api_key)
+                self.client = genai.Client(api_key=api_key)
                 self.api_key = api_key
-                self.initialized = True
             except Exception as e:
-                logger.error(f"Failed to reconfigure Gemini API client: {e}")
-                self.initialized = False
+                logger.error(f"Failed to reconfigure Gemini client: {e}")
+                self.client = None
 
     @retry_on_exception(max_retries=3, initial_delay=1.0)
     def classify(self, current_query: str, history: List[Dict[str, str]] = None) -> Dict[str, Any]:
@@ -40,8 +39,8 @@ class CustomerClassifier:
             "reasoning": str
         }
         """
-        if not self.initialized:
-            logger.warning("Gemini API key is missing. Returning default classification.")
+        if not self.client:
+            logger.warning("Gemini client not initialized. Returning default classification.")
             return {
                 "persona": "Frustrated User",
                 "confidence": 0.5,
@@ -79,36 +78,32 @@ You MUST respond strictly in the following JSON format:
 """
         
         try:
-            model = genai.GenerativeModel(Config.GEMINI_MODEL_NAME)
-            response = model.generate_content(
-                prompt,
-                generation_config={"response_mime_type": "application/json"}
+            response = self.client.models.generate_content(
+                model=Config.GEMINI_MODEL_NAME,
+                contents=prompt,
+                config=types.GenerateContentConfig(
+                    response_mime_type="application/json"
+                )
             )
             
             result = json.loads(response.text.strip())
             
-            # Post-processing/validation of values to ensure robustness
             valid_personas = {"Technical Expert", "Frustrated User", "Business Executive"}
             valid_sentiments = {"Positive", "Neutral", "Negative"}
             
             if result.get("persona") not in valid_personas:
-                # Deduce persona based on simple heuristic or set default
                 result["persona"] = "Frustrated User"
-            
             if result.get("sentiment") not in valid_sentiments:
                 result["sentiment"] = "Neutral"
-                
             try:
                 result["confidence"] = float(result.get("confidence", 0.5))
             except (ValueError, TypeError):
                 result["confidence"] = 0.5
-                
             result["reasoning"] = result.get("reasoning", "Parsed classification.")
             return result
             
         except Exception as e:
             logger.error(f"Error during Gemini classification call: {e}")
-            # Safe default fallback on API error
             return {
                 "persona": "Frustrated User",
                 "confidence": 0.4,

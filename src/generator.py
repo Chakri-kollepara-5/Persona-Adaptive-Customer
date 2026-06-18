@@ -1,4 +1,5 @@
-import google.generativeai as genai
+from google import genai
+from google.genai import types
 from typing import List, Dict, Any
 from src.config import Config
 from src.utils import logger, retry_on_exception
@@ -8,24 +9,22 @@ class ResponseGenerator:
     
     def __init__(self, api_key: str = ""):
         self.api_key = api_key or Config.GEMINI_API_KEY
-        self.initialized = False
+        self.client = None
         if self.api_key:
             try:
-                genai.configure(api_key=self.api_key)
-                self.initialized = True
+                self.client = genai.Client(api_key=self.api_key)
             except Exception as e:
-                logger.error(f"Failed to configure Gemini API client in Generator: {e}")
+                logger.error(f"Failed to configure Gemini client in Generator: {e}")
                 
     def reconfigure(self, api_key: str):
         """Reconfigures the Gemini client with a new API key."""
         if api_key:
             try:
-                genai.configure(api_key=api_key)
+                self.client = genai.Client(api_key=api_key)
                 self.api_key = api_key
-                self.initialized = True
             except Exception as e:
-                logger.error(f"Failed to reconfigure Gemini API client in Generator: {e}")
-                self.initialized = False
+                logger.error(f"Failed to reconfigure Gemini client in Generator: {e}")
+                self.client = None
 
     @retry_on_exception(max_retries=3, initial_delay=1.0)
     def generate_response(
@@ -39,7 +38,7 @@ class ResponseGenerator:
         Generates a customer support response adapted to the given persona,
         grounded strictly in the retrieved context chunks.
         """
-        if not self.initialized:
+        if not self.client:
             return (
                 "Welcome to the Support Portal. Please configure your Gemini API Key in the "
                 "sidebar to activate the AI Agent response generator."
@@ -76,7 +75,6 @@ class ResponseGenerator:
                 page = chunk['metadata'].get('page_number', '')
                 section = chunk['metadata'].get('section', '')
                 location = f"Page {page}" if page else f"Section: {section}" if section else ""
-                
                 context_str += f"--- Document Reference [{idx + 1}] ({source} - {location}) ---\n"
                 context_str += f"{chunk['text']}\n\n"
 
@@ -85,43 +83,39 @@ class ResponseGenerator:
         if history:
             history_str = "\n".join([f"{msg['role'].capitalize()}: {msg['content']}" for msg in history[-6:]])
 
-        # Define persona-specific instruction blocks
-        persona_instructions = ""
+        # Persona-specific instruction blocks
         if persona == "Technical Expert":
             persona_instructions = """
 - Style: Highly detailed, technical, logical, and structured.
 - Tone: Professional, authoritative, and helpful.
-- Content Requirements: Provide a thorough explanation of the underlying system mechanics or rules. If available, outline the root cause. Provide complete technical troubleshooting steps. Use code blocks, terminal command syntax, or specific error mappings. Keep explanations deep and robust.
+- Content Requirements: Provide a thorough explanation of the underlying system mechanics. Outline root cause if available. Provide complete technical troubleshooting steps. Use code blocks and specific error mappings.
 """
         elif persona == "Frustrated User":
             persona_instructions = """
 - Style: High empathy, comforting, reassuring, and action-oriented.
 - Tone: Heartfelt, supportive, apologetic, and friendly.
-- Content Requirements: Start by acknowledging and validating their frustration immediately (e.g., "I completely understand how frustrating this error is...", "I'm so sorry this is blocking your operations..."). Use comforting, calming language. Explain things in very simple terms. Break down the solution into clear, simple, step-by-step action items. Do NOT use heavy developer jargon.
+- Content Requirements: Start by acknowledging and validating their frustration. Use calming language. Explain things in very simple terms. Break down the solution into clear, simple, numbered steps. Do NOT use technical jargon.
 """
         elif persona == "Business Executive":
             persona_instructions = """
 - Style: Highly concise, clear, summarized, and outcome-oriented.
 - Tone: Executive, strategic, business-focused, and polite.
-- Content Requirements: Provide a concise summary first (the bottom line). Focus on business impacts (costs, subscription levels, data retention, SLAs). Estimate resolution timelines (e.g., "within 14 days", "instantly", "5 to 10 business days"). Avoid deep developer details or technical code snippets. Use bullet points for high-level summaries.
+- Content Requirements: Provide a concise summary first. Focus on business impacts, SLAs, and timelines. Use bullet points. Avoid all technical details and developer jargon.
 """
         else:
-            # Fallback
             persona_instructions = "- Tone: Helpful and professional. Provide clear instructions."
 
-        # Unified Prompt with system instructions and guidelines
         prompt = f"""
-You are an advanced Customer Support AI Agent. Your goal is to resolve customer inquiries using ONLY the facts present in the provided Retrieved Context. 
+You are an advanced Customer Support AI Agent. Your goal is to resolve customer inquiries using ONLY the facts present in the provided Retrieved Context.
 
 === STRICT CONSTRAINTS ===
-1. You MUST formulate your answer using ONLY the information provided in the "Retrieved Context" section below.
-2. If the answer to the user's query cannot be found in the Retrieved Context, or if the context is insufficient, state exactly:
-   "I'm sorry, I cannot find sufficient information in our support documents to answer your request."
-3. Do NOT make up any facts, credentials, command names, URLs, or support details that are not explicitly in the context. Zero hallucinations.
-4. Integrate the conversation history to ensure contextually relevant responses.
+1. You MUST formulate your answer using ONLY the information in "Retrieved Context" below.
+2. If the answer cannot be found in the context, state: "I'm sorry, I cannot find sufficient information in our support documents to answer your request."
+3. Do NOT hallucinate any facts, URLs, or commands not in the context.
+4. Use the conversation history to maintain context continuity.
 
-=== ADAPTIVE PERSONA INSTUCTIONS ===
-You must respond as a "{persona}". Adapt your response format and tone to follow these rules:
+=== ADAPTIVE PERSONA INSTRUCTIONS ===
+Respond as a "{persona}" using these style rules:
 {persona_instructions}
 
 === RETRIEVED CONTEXT ===
@@ -137,8 +131,10 @@ Formulate your response below:
 """
 
         try:
-            model = genai.GenerativeModel(Config.GEMINI_MODEL_NAME)
-            response = model.generate_content(prompt)
+            response = self.client.models.generate_content(
+                model=Config.GEMINI_MODEL_NAME,
+                contents=prompt
+            )
             return response.text.strip()
         except Exception as e:
             logger.error(f"Error during response generation call: {e}")

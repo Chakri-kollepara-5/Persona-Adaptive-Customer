@@ -1,5 +1,6 @@
 import json
-import google.generativeai as genai
+from google import genai
+from google.genai import types
 from typing import List, Dict, Any
 from src.config import Config
 from src.utils import logger, retry_on_exception
@@ -9,24 +10,22 @@ class Escalator:
     
     def __init__(self, api_key: str = ""):
         self.api_key = api_key or Config.GEMINI_API_KEY
-        self.initialized = False
+        self.client = None
         if self.api_key:
             try:
-                genai.configure(api_key=self.api_key)
-                self.initialized = True
+                self.client = genai.Client(api_key=self.api_key)
             except Exception as e:
-                logger.error(f"Failed to configure Gemini API client in Escalator: {e}")
+                logger.error(f"Failed to configure Gemini client in Escalator: {e}")
 
     def reconfigure(self, api_key: str):
         """Reconfigures the Gemini client with a new API key."""
         if api_key:
             try:
-                genai.configure(api_key=api_key)
+                self.client = genai.Client(api_key=api_key)
                 self.api_key = api_key
-                self.initialized = True
             except Exception as e:
-                logger.error(f"Failed to reconfigure Gemini API client in Escalator: {e}")
-                self.initialized = False
+                logger.error(f"Failed to reconfigure Gemini client in Escalator: {e}")
+                self.client = None
 
     def _is_general_chitchat(self, query: str) -> bool:
         """Helper to determine if the query is a simple greeting, intro, or general chitchat.
@@ -177,8 +176,8 @@ class Escalator:
         Uses Gemini to construct a structured, professional JSON summary of the 
         conversation context and specific action items for the human representative.
         """
-        if not self.initialized:
-            logger.warning("Gemini API key not configured in Escalator. Compiling local fallback summary.")
+        if not self.client:
+            logger.warning("Gemini client not configured in Escalator. Compiling local fallback summary.")
             return self._generate_fallback_summary(issue_reason, conversation_history, retrieved_chunks, persona)
             
         history_str = ""
@@ -212,10 +211,12 @@ You MUST return a JSON object structured exactly like the template below:
 }}
 """
         try:
-            model = genai.GenerativeModel(Config.GEMINI_MODEL_NAME)
-            response = model.generate_content(
-                prompt,
-                generation_config={"response_mime_type": "application/json"}
+            response = self.client.models.generate_content(
+                model=Config.GEMINI_MODEL_NAME,
+                contents=prompt,
+                config=types.GenerateContentConfig(
+                    response_mime_type="application/json"
+                )
             )
             
             summary = json.loads(response.text.strip())
