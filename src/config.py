@@ -25,10 +25,11 @@ class Config:
     if not GEMINI_API_KEY:
         GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
     
-    # Model Configuration — gemini-1.5-flash has 1500 req/day free vs only 20/day for 2.5-flash
-    # Force to 1.5-flash; only allow override if explicitly set to a DIFFERENT value
-    _model_env = os.getenv("GEMINI_MODEL_NAME", "gemini-1.5-flash")
-    GEMINI_MODEL_NAME = _model_env if _model_env != "gemini-2.5-flash" else "gemini-1.5-flash"
+    # Model Configuration — use gemini-1.5-flash-latest (correct name for v1beta API)
+    # gemini-1.5-flash-latest = 1,500 req/day free tier (vs 20/day for gemini-2.5-flash)
+    _model_env = os.getenv("GEMINI_MODEL_NAME", "gemini-1.5-flash-latest")
+    # Block any attempt to use the 20 req/day limited model
+    GEMINI_MODEL_NAME = _model_env if _model_env != "gemini-2.5-flash" else "gemini-1.5-flash-latest"
     EMBEDDING_MODEL_NAME = os.getenv("EMBEDDING_MODEL_NAME", "all-MiniLM-L6-v2")
     
     # Retrieval Configuration
