@@ -25,15 +25,17 @@ class Config:
     if not GEMINI_API_KEY:
         GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
     
-    # Model Configuration
-    GEMINI_MODEL_NAME = os.getenv("GEMINI_MODEL_NAME", "gemini-2.5-flash")
+    # Model Configuration — gemini-1.5-flash has 1500 req/day free vs only 20/day for 2.5-flash
+    # Force to 1.5-flash; only allow override if explicitly set to a DIFFERENT value
+    _model_env = os.getenv("GEMINI_MODEL_NAME", "gemini-1.5-flash")
+    GEMINI_MODEL_NAME = _model_env if _model_env != "gemini-2.5-flash" else "gemini-1.5-flash"
     EMBEDDING_MODEL_NAME = os.getenv("EMBEDDING_MODEL_NAME", "all-MiniLM-L6-v2")
     
     # Retrieval Configuration
     DEFAULT_TOP_K = 4
     
     # Escalation Settings
-    DEFAULT_ESCALATION_THRESHOLD = float(os.getenv("ESCALATION_THRESHOLD", "0.45"))
+    DEFAULT_ESCALATION_THRESHOLD = float(os.getenv("ESCALATION_THRESHOLD", "0.30"))
     MAX_NEGATIVE_TURNS = 2  # Escalate if the user is dissatisfied for 2 consecutive turns
     
     @classmethod
