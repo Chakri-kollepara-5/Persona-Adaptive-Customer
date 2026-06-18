@@ -14,7 +14,16 @@ class Config:
     CHROMA_DB_DIR = Path(os.getenv("CHROMA_DB_DIR", BASE_DIR / "data" / "chromadb"))
     
     # API Configurations
-    GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
+    GEMINI_API_KEY = ""
+    try:
+        import streamlit as st
+        if "GEMINI_API_KEY" in st.secrets:
+            GEMINI_API_KEY = st.secrets["GEMINI_API_KEY"]
+    except Exception:
+        pass
+        
+    if not GEMINI_API_KEY:
+        GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
     
     # Model Configuration
     GEMINI_MODEL_NAME = os.getenv("GEMINI_MODEL_NAME", "gemini-2.5-flash")
