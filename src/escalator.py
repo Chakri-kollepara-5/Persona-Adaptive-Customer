@@ -29,21 +29,37 @@ class Escalator:
                 self.initialized = False
 
     def _is_general_chitchat(self, query: str) -> bool:
-        """Helper to determine if the query is a simple greeting or general chitchat."""
+        """Helper to determine if the query is a simple greeting, intro, or general chitchat.
+        Uses startswith matching so typos like 'hii', 'heyyy' are still caught.
+        Also catches very short ambiguous messages like 'hu', 'ok', 'yo'."""
         q = query.strip().lower().rstrip("?.!")
-        greetings = {
-            "hello", "hi", "hey", "greetings", "good morning", "good afternoon", "good evening", 
-            "howdy", "who are you", "who are u", "hi there", "hello there", "what is this", 
-            "what are you", "help", "info", "test", "yo", "sup", "how are you", "how are u"
-        }
-        if q in greetings:
-            return True
-        
-        # Split into words to check short queries containing greeting roots
+
+        # Very short messages (2 words or less, 10 chars or less) are always ambiguous — never escalate
         words = q.split()
-        if len(words) <= 4:
-            roots = {"hi", "hello", "hey", "who", "help", "test", "greetings", "u", "you"}
-            if any(w in roots for w in words):
+        if len(words) <= 2 and len(q) <= 10:
+            return True
+
+        # Full phrase matches
+        full_phrases = {
+            "who are you", "who are u", "hi there", "hello there",
+            "what is this", "what are you", "how are you", "how are u",
+            "good morning", "good afternoon", "good evening", "what can you do",
+            "what do you do", "nice to meet you", "i am here for help"
+        }
+        if q in full_phrases:
+            return True
+
+        # Greeting root prefixes — catches 'hii', 'hiiii', 'heyyy', 'helloooo', etc.
+        greeting_prefixes = ("hi", "hey", "hello", "helo", "howdy", "yo", "sup", "greet")
+
+        # Short queries (<=5 words): check if any word starts with a greeting prefix
+        if len(words) <= 5:
+            for word in words:
+                if any(word.startswith(prefix) for prefix in greeting_prefixes):
+                    return True
+            # Also allow short intro messages like "i am chakri", "iam chakri", "my name is"
+            intro_starters = ("i am", "iam", "im ", "i'm", "my name", "this is")
+            if any(q.startswith(s) for s in intro_starters):
                 return True
         return False
 

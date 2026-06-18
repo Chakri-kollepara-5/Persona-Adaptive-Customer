@@ -80,10 +80,23 @@ st.markdown("""
 
 @st.cache_resource
 def load_rag_pipeline() -> RAGPipeline:
-    """Instantiates and caches the RAG database pipeline."""
-    with st.spinner("Initializing ChromaDB & loading Embedding Model (SentenceTransformers)..."):
-        pipeline = RAGPipeline()
-        return pipeline
+    """Instantiates and caches the RAG database pipeline.
+    Auto-indexes documents on startup if ChromaDB is empty (e.g. fresh Streamlit Cloud deploy)."""
+    pipeline = RAGPipeline()
+    # Auto-generate KB files if data dir is empty or missing
+    if not Config.DATA_DIR.exists() or not any(Config.DATA_DIR.iterdir()):
+        try:
+            from generate_kb import generate_documents
+            generate_documents()
+        except Exception as e:
+            logger.warning(f"Could not auto-generate KB files: {e}")
+    # Auto-index into ChromaDB if collection is empty
+    if pipeline.collection.count() == 0:
+        try:
+            pipeline.index_documents()
+        except Exception as e:
+            logger.warning(f"Could not auto-index documents: {e}")
+    return pipeline
 
 # ----------------- SESSION STATE SETUP -----------------
 
@@ -179,12 +192,14 @@ with st.sidebar:
                 st.rerun()
                 
     with col2:
-        if st.button("Generate Default KB", use_container_width=True, help="Triggers generate_kb.py to create support files."):
-            with st.spinner("Running generator..."):
+        if st.button("Generate Default KB", use_container_width=True, help="Creates 15 SaaS support docs and re-indexes them."):
+            with st.spinner("Generating documents and indexing..."):
                 try:
-                    import subprocess
-                    subprocess.run(["python", "generate_kb.py"], check=True)
-                    st.success("Default files generated!")
+                    from generate_kb import generate_documents
+                    generate_documents()
+                    rag_pipeline.clear_database()
+                    chunk_count = rag_pipeline.index_documents()
+                    st.success(f"Generated docs & indexed {chunk_count} chunks!")
                     st.rerun()
                 except Exception as e:
                     st.error(f"Error: {e}")

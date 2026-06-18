@@ -44,7 +44,28 @@ class ResponseGenerator:
                 "Welcome to the Support Portal. Please configure your Gemini API Key in the "
                 "sidebar to activate the AI Agent response generator."
             )
-            
+
+        # Shortcut: if query is very short or is a greeting, return a friendly welcome directly
+        # without making an LLM call — saves quota and avoids errors on trivial inputs
+        q_stripped = query.strip().lower().rstrip("?.!")
+        words = q_stripped.split()
+        greeting_prefixes = ("hi", "hey", "hello", "helo", "howdy", "hu", "yo", "sup")
+        is_greeting = (
+            (len(words) <= 2 and len(q_stripped) <= 10) or
+            any(q_stripped.startswith(p) for p in greeting_prefixes)
+        )
+        if is_greeting:
+            return (
+                "👋 Hello! Welcome to the **Persona-Adaptive Support Hub**.\n\n"
+                "I'm your AI support agent. I can help you with:\n"
+                "- 🔐 Password resets & account lockouts\n"
+                "- 🔑 API authentication & integrations\n"
+                "- 💳 Billing, invoices & subscription management\n"
+                "- 📊 Dashboard errors & troubleshooting\n"
+                "- 👥 User roles & team permissions\n\n"
+                "Please describe your issue and I'll get you the right answer right away!"
+            )
+
         # Compile retrieved context
         context_str = ""
         if not context_chunks:
