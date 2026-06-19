@@ -16,4 +16,4 @@ data/chromadb/
 logs/
 
 # Streamlit logs and configurations
-
+.streamlit/
